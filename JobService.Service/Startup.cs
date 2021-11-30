@@ -23,7 +23,7 @@ namespace JobService.Service
     using Microsoft.Extensions.Hosting;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
-
+    using Serilog;
 
     public class Startup
     {
@@ -39,42 +39,45 @@ namespace JobService.Service
         public static bool IsRunningInContainer =>
             _isRunningInContainer ??= bool.TryParse(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), out var inDocker) && inDocker;
 
+        
+        
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
 
             services.AddDbContext<JobServiceSagaDbContext>(builder =>
-                builder.UseNpgsql(Configuration.GetConnectionString("JobService"), m =>
-                {
+            builder.UseSqlServer(Configuration.GetConnectionString("JobServiceSql"), m =>
+            /*        builder.UseNpgsql(Configuration.GetConnectionString("JobService"), m =>*/
+            {
                     m.MigrationsAssembly(Assembly.GetExecutingAssembly().GetName().Name);
                     m.MigrationsHistoryTable($"__{nameof(JobServiceSagaDbContext)}");
                 }));
-
+        
             services.AddMassTransit(x =>
             {
                 x.AddDelayedMessageScheduler();
 
                 x.AddConsumer<ConvertVideoJobConsumer>(typeof(ConvertVideoJobConsumerDefinition));
 
-                x.AddConsumer<VideoConvertedConsumer>();
+                //x.AddConsumer<VideoConvertedConsumer>();
 
                 x.AddSagaRepository<JobSaga>()
                     .EntityFrameworkRepository(r =>
                     {
                         r.ExistingDbContext<JobServiceSagaDbContext>();
-                        r.LockStatementProvider = new PostgresLockStatementProvider();
+                        //r.LockStatementProvider = new PostgresLockStatementProvider();
                     });
                 x.AddSagaRepository<JobTypeSaga>()
                     .EntityFrameworkRepository(r =>
                     {
                         r.ExistingDbContext<JobServiceSagaDbContext>();
-                        r.LockStatementProvider = new PostgresLockStatementProvider();
+                        //r.LockStatementProvider = new PostgresLockStatementProvider();
                     });
                 x.AddSagaRepository<JobAttemptSaga>()
                     .EntityFrameworkRepository(r =>
                     {
                         r.ExistingDbContext<JobServiceSagaDbContext>();
-                        r.LockStatementProvider = new PostgresLockStatementProvider();
+                        //r.LockStatementProvider = new PostgresLockStatementProvider();
                     });
 
                 x.AddRequestClient<ConvertVideo>();
@@ -88,7 +91,7 @@ namespace JobService.Service
 
                     cfg.UseDelayedMessageScheduler();
 
-                    var options = new ServiceInstanceOptions()
+                    /*var options = new ServiceInstanceOptions()
                         .SetEndpointNameFormatter(context.GetService<IEndpointNameFormatter>() ?? KebabCaseEndpointNameFormatter.Instance);
 
                     cfg.ServiceInstance(options, instance =>
@@ -97,12 +100,12 @@ namespace JobService.Service
                         {
                             js.SagaPartitionCount = 1;
                             js.FinalizeCompleted = true;
-
+                            
                             js.ConfigureSagaRepositories(context);
                         });
 
                         instance.ConfigureEndpoints(context);
-                    });
+                    });*/
                 });
             });
             services.AddMassTransitHostedService();
@@ -112,13 +115,15 @@ namespace JobService.Service
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            app.UseSerilogRequestLogging();
+
             if (env.IsDevelopment())
                 app.UseDeveloperExceptionPage();
-
+            
             app.UseRouting();
 
             app.UseAuthorization();
-
+                
             app.UseOpenApi();
             app.UseSwaggerUi3();
 

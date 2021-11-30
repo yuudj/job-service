@@ -18,6 +18,7 @@
 
         public async Task Run(JobContext<ConvertVideo> context)
         {
+            _logger.LogInformation($"PROCESANDO JOB {context.Job.Path}");
             var rng = new Random();
 
             var variance = TimeSpan.FromMilliseconds(rng.Next(8399, 28377));
